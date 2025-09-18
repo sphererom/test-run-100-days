@@ -2,8 +2,11 @@ name: Slow Drip Commits (20–30/day, stop after 100 days)
 
 on:
   schedule:
-    - cron: "15 1 * * *"   # ทุกวัน 01:15 UTC (≈ 08:15 ไทย)
-  workflow_dispatch:         # กด Run เองได้
+    - cron: "15 1 * * *"   # 01:15 UTC (~08:15 ไทย)
+  workflow_dispatch:
+
+permissions:
+  contents: write   # ← ให้สิทธิ์ push
 
 jobs:
   drip:
@@ -15,19 +18,22 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true   # ← เก็บ token ไว้ push
+          fetch-depth: 0              # ← ไม่ shallow, กันปัญหา history
 
-      - name: Set Git config
+      - name: Make git workspace safe & set identity
         run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name  "sphererom"
           git config user.email "134825090+sphererom@users.noreply.github.com"
 
-      # เตรียมไฟล์ตัวนับ + ตัดสินใจหยุดเมื่อครบ 100 วัน
       - name: Prepare counters
         id: prep
         run: |
           mkdir -p .ci
-          [ -f .ci/day-count.txt ]   || echo 0 > .ci/day-count.txt
-          [ -f .ci/total-commits.txt ] || echo 0 > .ci/total-commits.txt
+          [ -f .ci/day-count.txt ]      || echo 0 > .ci/day-count.txt
+          [ -f .ci/total-commits.txt ]  || echo 0 > .ci/total-commits.txt
 
           DAYS=$(cat .ci/day-count.txt)
           TOTAL=$(cat .ci/total-commits.txt)
@@ -40,16 +46,14 @@ jobs:
             exit 0
           fi
 
-          # สุ่มจำนวนคอมมิตวันนี้ 20–30
-          COMMITS=$((20 + RANDOM % 11))
+          COMMITS=$((20 + RANDOM % 11))   # 20–30
           echo "COMMITS=$COMMITS" >> $GITHUB_OUTPUT
-
-          # อัปเดตตัวนับวันทันที (จะถูก commit ตอนท้าย)
           echo $((DAYS+1)) > .ci/day-count.txt
 
-      - name: Make today's random commits (20–30)
+      - name: Make today's random commits
         if: steps.prep.outputs.limit != 'true'
         run: |
+          set -e
           FILE=drip_commits.txt
           touch "$FILE"
           COMMITS=${{ steps.prep.outputs.COMMITS }}
@@ -58,17 +62,15 @@ jobs:
             echo "Drip commit $i - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
             git add "$FILE"
             git commit -m "chore: drip commit $i"
-            # หน่วงแบบเบา ๆ 30–120 วินาที ต่อ commit
+            # ดีเลย์ 30–120 วิ (ไม่เกินเวลารัน)
             DELAY=$(( 30 + RANDOM % 91 ))
             echo "⏳ sleep $DELAY sec"
             sleep $DELAY
           done
 
-          # คอมมิตสุดท้ายของวัน + อัปเดตยอดรวม
           TODAY=$COMMITS
           TOTAL=$(cat .ci/total-commits.txt)
-          NEW_TOTAL=$((TOTAL + TODAY))
-          echo "$NEW_TOTAL" > .ci/total-commits.txt
+          echo $((TOTAL + TODAY)) > .ci/total-commits.txt
 
           echo "Drip commit $TODAY - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
           git add "$FILE" .ci/day-count.txt .ci/total-commits.txt
@@ -83,6 +85,6 @@ jobs:
           echo "- Days completed: $(cat .ci/day-count.txt) / 100" >> $GITHUB_STEP_SUMMARY
           echo "- Total commits so far: $(cat .ci/total-commits.txt)" >> $GITHUB_STEP_SUMMARY
 
-      - name: Finished (already reached 100 days)
+      - name: Finished
         if: steps.prep.outputs.limit == 'true'
         run: echo "Limit reached: 100 days ✔️"
