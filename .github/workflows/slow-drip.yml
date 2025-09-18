@@ -6,15 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # ให้สิทธิ์ push
+  contents: write
 
 jobs:
   drip:
     runs-on: ubuntu-latest
-    concurrency:
-      group: slow-drip
-      cancel-in-progress: false
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -22,7 +18,7 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Make git workspace safe & set identity
+      - name: Setup git
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "sphererom"
@@ -38,42 +34,36 @@ jobs:
           DAYS=$(cat .ci/day-count.txt)
           TOTAL=$(cat .ci/total-commits.txt)
 
-          echo "Days so far: $DAYS"
-          echo "Total commits so far: $TOTAL"
-
           if [ "$DAYS" -ge 100 ]; then
             echo "limit=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          COMMITS=$((20 + RANDOM % 11))   # 20–30 commits
+          COMMITS=$((20 + RANDOM % 11))
           echo "COMMITS=$COMMITS" >> $GITHUB_OUTPUT
           echo $((DAYS+1)) > .ci/day-count.txt
 
-      - name: Make today's random commits
+      - name: Make today's commits
         if: steps.prep.outputs.limit != 'true'
         run: |
-          set -e
           FILE=drip_commits.txt
           touch "$FILE"
           COMMITS=${{ steps.prep.outputs.COMMITS }}
 
           for ((i=1; i<COMMITS; i++)); do
-            echo "Drip commit $i - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
+            echo "Commit $i - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
             git add "$FILE"
             git commit -m "chore: drip commit $i"
-            DELAY=$(( 30 + RANDOM % 91 ))
-            echo "⏳ sleep $DELAY sec"
-            sleep $DELAY
+            sleep $((30 + RANDOM % 91))
           done
 
           TODAY=$COMMITS
           TOTAL=$(cat .ci/total-commits.txt)
           echo $((TOTAL + TODAY)) > .ci/total-commits.txt
 
-          echo "Drip commit $TODAY - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
+          echo "Commit $TODAY - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
           git add "$FILE" .ci/day-count.txt .ci/total-commits.txt
-          git commit -m "chore: drip commit $TODAY + update counters (day, total)"
+          git commit -m "chore: drip commit $TODAY + update counters"
           git push
 
       - name: Summary
@@ -86,4 +76,5 @@ jobs:
 
       - name: Finished
         if: steps.prep.outputs.limit == 'true'
-        run: echo "Limit reached: 100 days"
+        run: |
+          echo "Limit reached: 100 days"
