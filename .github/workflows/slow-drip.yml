@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # ← ให้สิทธิ์ push
+  contents: write   # ให้สิทธิ์ push
 
 jobs:
   drip:
@@ -19,21 +19,21 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          persist-credentials: true   # ← เก็บ token ไว้ push
-          fetch-depth: 0              # ← ไม่ shallow, กันปัญหา history
+          persist-credentials: true
+          fetch-depth: 0
 
       - name: Make git workspace safe & set identity
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config user.name  "sphererom"
+          git config user.name "sphererom"
           git config user.email "134825090+sphererom@users.noreply.github.com"
 
       - name: Prepare counters
         id: prep
         run: |
           mkdir -p .ci
-          [ -f .ci/day-count.txt ]      || echo 0 > .ci/day-count.txt
-          [ -f .ci/total-commits.txt ]  || echo 0 > .ci/total-commits.txt
+          [ -f .ci/day-count.txt ] || echo 0 > .ci/day-count.txt
+          [ -f .ci/total-commits.txt ] || echo 0 > .ci/total-commits.txt
 
           DAYS=$(cat .ci/day-count.txt)
           TOTAL=$(cat .ci/total-commits.txt)
@@ -46,7 +46,7 @@ jobs:
             exit 0
           fi
 
-          COMMITS=$((20 + RANDOM % 11))   # 20–30
+          COMMITS=$((20 + RANDOM % 11))   # 20–30 commits
           echo "COMMITS=$COMMITS" >> $GITHUB_OUTPUT
           echo $((DAYS+1)) > .ci/day-count.txt
 
@@ -62,7 +62,6 @@ jobs:
             echo "Drip commit $i - $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$FILE"
             git add "$FILE"
             git commit -m "chore: drip commit $i"
-            # ดีเลย์ 30–120 วิ (ไม่เกินเวลารัน)
             DELAY=$(( 30 + RANDOM % 91 ))
             echo "⏳ sleep $DELAY sec"
             sleep $DELAY
